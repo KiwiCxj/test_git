@@ -1,0 +1,1965 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>银行押运车智能路线规划系统</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Microsoft YaHei', Arial, sans-serif; background: #f5f7fa; }
+        .header { background: linear-gradient(135deg, #1e3c72, #2a5298); color: white; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; }
+        .header h1 { font-size: 18px; }
+        .header-info { font-size: 13px; }
+        .main { display: flex; height: calc(100vh - 60px); }
+        .sidebar { width: 420px; background: #fafafa; border-right: 1px solid #e8e8e8; display: flex; flex-direction: column; overflow: hidden; }
+        .sidebar-scroll { flex: 1; overflow-y: auto; overflow-x: hidden; scroll-behavior: smooth; }
+        .sidebar-bottom { flex-shrink: 0; border-top: 1px solid #eee; background: #fafafa; }
+
+        /* 自定义细窄滚动条 6px 圆角 - 带过渡动画 */
+        .sidebar-scroll::-webkit-scrollbar,
+        .branch-list-wrapper::-webkit-scrollbar,
+        .stats::-webkit-scrollbar,
+        .modal-body::-webkit-scrollbar {
+            width: 8px;
+        }
+        .sidebar-scroll::-webkit-scrollbar-track,
+        .branch-list-wrapper::-webkit-scrollbar-track,
+        .stats::-webkit-scrollbar-track,
+        .modal-body::-webkit-scrollbar-track {
+            background: rgba(0,0,0,0.03);
+            border-radius: 4px;
+        }
+        .sidebar-scroll::-webkit-scrollbar-thumb,
+        .branch-list-wrapper::-webkit-scrollbar-thumb,
+        .stats::-webkit-scrollbar-thumb,
+        .modal-body::-webkit-scrollbar-thumb {
+            background: rgba(0,0,0,0.15);
+            border-radius: 4px;
+            transition: background 0.3s ease;
+        }
+        .sidebar-scroll::-webkit-scrollbar-thumb:hover,
+        .branch-list-wrapper::-webkit-scrollbar-thumb:hover,
+        .stats::-webkit-scrollbar-thumb:hover,
+        .modal-body::-webkit-scrollbar-thumb:hover {
+            background: rgba(0,0,0,0.3);
+        }
+
+        .section { padding: 12px; border-bottom: 1px solid #eee; flex-shrink: 0; }
+        .section-title { font-size: 13px; font-weight: bold; margin-bottom: 8px; color: #333; }
+        .start-box { display: flex; gap: 6px; }
+        .start-btn { flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px; cursor: pointer; background: white; text-align: center; }
+        .start-btn.active { background: #1890ff; color: white; border-color: #1890ff; }
+        .vehicle-btns { display: flex; gap: 8px; }
+        .vehicle-btn { flex: 1; padding: 10px; border: 2px solid #ddd; border-radius: 6px; text-align: center; cursor: pointer; background: white; font-size: 12px; transition: all 0.2s ease; }
+        .vehicle-btn:hover { border-color: #69c0ff; background: #f0f7ff; }
+        .vehicle-btn.active { border-color: #1890ff; background: #e6f7ff; color: #1890ff; font-weight: bold; }
+        .search-box { display: flex; gap: 8px; }
+        .search-input { flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px; }
+        .search-btn { padding: 8px 14px; background: #1890ff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; }
+        .search-results { margin-top: 8px; max-height: 150px; overflow-y: auto; border: 1px solid #eee; border-radius: 4px; display: none; }
+        .search-item { padding: 8px; border-bottom: 1px solid #eee; cursor: pointer; font-size: 12px; }
+        .search-item:hover { background: #e6f7ff; }
+        .search-item-name { font-weight: 500; }
+        .search-item-addr { color: #999; font-size: 11px; }
+        .branch-list-wrapper { flex: 1; overflow-y: auto; padding: 10px; }
+        .branch-list { display: flex; flex-direction: column; gap: 8px; }
+        .branch-item { background: white; border: 1px solid #e8e8e8; border-radius: 8px; padding: 12px; margin-bottom: 6px; display: flex; align-items: center; gap: 10px; transition: all 0.2s ease; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+        .branch-item:hover { border-color: #1890ff; background: #fafafa; box-shadow: 0 3px 12px rgba(24,144,255,0.12); transform: translateY(-1px); }
+        .branch-item.on-route { border-color: #52c41a; background: #f6ffed; border-left: 3px solid #52c41a; }
+        .branch-item.selected { background: #e6f7ff; border-left: 3px solid #1890ff; border-color: #b3d9ff; }
+        .branch-item.hidden { display: none; }
+        .branch-checkbox { width: 20px; height: 20px; border: 2px solid #d9d9d9; border-radius: 4px; cursor: pointer; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 12px; transition: all 0.15s ease; }
+        .branch-checkbox.checked { background: #1890ff; border-color: #1890ff; color: white; }
+        .select-btns { display: flex; gap: 6px; margin-bottom: 10px; }
+        .select-btn { flex: 1; padding: 7px; border: 1px solid #1890ff; border-radius: 4px; font-size: 11px; cursor: pointer; background: white; color: #1890ff; text-align: center; font-weight: 500; }
+        .select-btn:hover { background: #e6f7ff; }
+        .select-btn.active { background: #1890ff; color: white; }
+        .select-info { font-size: 11px; color: #666; text-align: center; padding: 6px; background: #f5f5f5; border-radius: 4px; margin-bottom: 10px; }
+        .selected-count { color: #1890ff; font-weight: bold; }
+        .branch-index { width: 28px; height: 28px; background: linear-gradient(135deg, #ff6b6b, #ff4d4f); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; flex-shrink: 0; box-shadow: 0 2px 4px rgba(255,77,79,0.3); }
+        .branch-info { flex: 1; min-width: 0; }
+        .branch-name { font-size: 13px; font-weight: 600; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .branch-addr { font-size: 11px; color: #888; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+        .branch-task { display: inline-block; margin-top: 5px; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500; }
+        .branch-task.task-transfer { background: #e6f7ff; color: #1890ff; }
+        .branch-task.task-atm { background: #fff7e6; color: #fa8c16; }
+        .stay-btns { display: flex; gap: 4px; flex-shrink: 0; }
+        .stay-btn { padding: 3px 8px; border: 1px solid #d9d9d9; border-radius: 4px; font-size: 11px; cursor: pointer; background: white; transition: all 0.2s; }
+        .stay-btn.active { background: #1890ff; color: white; border-color: #1890ff; }
+        .del-btn { background: none; border: none; color: #ccc; font-size: 18px; cursor: pointer; padding: 4px 8px; transition: color 0.2s; }
+        .del-btn:hover { color: #ff4d4f; }
+        .btns { padding: 12px; display: flex; flex-direction: column; gap: 8px; border-top: 1px solid #eee; }
+        .btn { padding: 12px; border: none; border-radius: 6px; font-size: 13px; cursor: pointer; text-align: center; transition: all 0.2s; }
+        .btn-primary { background: linear-gradient(135deg, #1890ff, #40a9ff); color: white; box-shadow: 0 2px 6px rgba(24,144,255,0.3); }
+        .btn-primary:hover { background: linear-gradient(135deg, #40a9ff, #69c0ff); box-shadow: 0 4px 12px rgba(24,144,255,0.4); transform: translateY(-1px); }
+        .btn-primary:active { transform: translateY(0); box-shadow: 0 1px 3px rgba(24,144,255,0.3); }
+        .btn-secondary { background: white; color: #666; border: 1px solid #ddd; }
+        .btn-secondary:hover { background: #f5f5f5; border-color: #bbb; }
+        .btn-auto { background: linear-gradient(135deg, #722ed1, #9254de); color: white; box-shadow: 0 2px 6px rgba(114,46,209,0.3); }
+        .btn-auto:hover { background: linear-gradient(135deg, #9254de, #b37feb); box-shadow: 0 4px 12px rgba(114,46,209,0.4); transform: translateY(-1px); }
+        .stats {
+            padding: 14px;
+            background: linear-gradient(135deg, #f6ffed, #f0ffe6);
+            border-top: 1px solid #eee;
+            display: none;
+            max-height: 200px;
+            overflow-y: auto;
+            flex-shrink: 0;
+            transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s ease;
+        }
+        .stats.expanded {
+            max-height: 600px;
+            box-shadow: 0 -4px 16px rgba(82,196,26,0.15);
+            border-top: 2px solid #52c41a;
+        }
+        .stats-title { font-size: 13px; font-weight: bold; margin-bottom: 10px; color: #52c41a; }
+        .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 12px; }
+        .stat-item { background: white; padding: 10px; border-radius: 6px; text-align: center; }
+        .stat-val { font-size: 16px; font-weight: bold; color: #1890ff; }
+        .stat-label { font-size: 10px; color: #666; margin-top: 2px; }
+        .route-detail { margin-top: 10px; }
+        .vehicle-card { background: white; padding: 12px; border-radius: 8px; margin-bottom: 10px; border-left: 4px solid #1890ff; }
+        .vehicle-card.v2 { border-left-color: #52c41a; }
+        .vehicle-card.v3 { border-left-color: #fa8c16; }
+        .vehicle-header { font-weight: bold; font-size: 14px; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+        .vehicle-header.v1 { color: #1890ff; }
+        .vehicle-header.v2 { color: #52c41a; }
+        .vehicle-header.v3 { color: #fa8c16; }
+        .vehicle-info { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; margin-bottom: 10px; }
+        .vehicle-info-item { background: #f5f5f5; padding: 6px 8px; border-radius: 4px; font-size: 11px; display: flex; justify-content: space-between; }
+        .vehicle-info-item span:first-child { color: #666; }
+        .vehicle-info-item span:last-child { font-weight: bold; color: #333; }
+        .vehicle-branches { font-size: 11px; }
+        .branch-row { display: flex; align-items: center; padding: 4px 0; gap: 6px; border-bottom: 1px dashed #f0f0f0; }
+        .branch-row:last-child { border-bottom: none; }
+        .branch-num { background: #1890ff; color: white; padding: 1px 6px; border-radius: 10px; font-size: 10px; }
+        .v2 .branch-num { background: #52c41a; }
+        .v3 .branch-num { background: #fa8c16; }
+        .branch-name { flex: 1; font-size: 11px; }
+        .branch-stay { color: #999; font-size: 10px; }
+        .map-area { flex: 1; position: relative; background: #f0f0f0; }
+        #map { width: 100%; height: 100%; }
+        .tip { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.65); color: white; padding: 8px 16px; border-radius: 20px; font-size: 12px; z-index: 100; pointer-events: none; }
+        .loading { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); background: white; padding: 30px 50px; border-radius: 12px; text-align: center; z-index: 200; display: none; box-shadow: 0 4px 20px rgba(0,0,0,0.15); }
+        .loading.active { display: block; }
+        .spinner { width: 36px; height: 36px; border: 3px solid #f3f3f3; border-top: 3px solid #1890ff; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 12px; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .loading-text { font-size: 14px; color: #333; }
+        .loading-sub { font-size: 12px; color: #999; margin-top: 4px; }
+        .progress-bar { width: 100%; height: 4px; background: #e0e0e0; border-radius: 2px; margin-top: 8px; overflow: hidden; display: none; }
+        .progress-bar.active { display: block; }
+        .progress-fill { height: 100%; background: #1890ff; border-radius: 2px; transition: width 0.3s; width: 0%; }
+        .toast { position: fixed; top: 70px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.8); color: white; padding: 10px 24px; border-radius: 6px; font-size: 13px; z-index: 1000; opacity: 0; transition: opacity 0.3s; }
+        .toast.show { opacity: 1; }
+        .empty { text-align: center; padding: 50px 20px; color: #999; }
+        .empty-icon { font-size: 48px; margin-bottom: 12px; }
+        .empty-text { font-size: 13px; }
+
+        /* 路线统计优化样式 */
+        .route-summary {
+            background: linear-gradient(135deg, #f6ffed, #e6ffec);
+            padding: 15px;
+            border-radius: 10px;
+            border: 2px solid #52c41a;
+            margin-top: 15px;
+        }
+        .route-summary-title {
+            font-size: 15px;
+            font-weight: bold;
+            color: #52c41a;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .route-summary-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 10px;
+        }
+        .route-summary-item {
+            background: white;
+            padding: 12px 8px;
+            border-radius: 6px;
+            text-align: center;
+        }
+        .route-summary-label {
+            color: #666;
+            font-size: 11px;
+            margin-bottom: 4px;
+        }
+        .route-summary-value {
+            font-size: 18px;
+            font-weight: bold;
+        }
+        .route-summary-value.blue { color: #1890ff; }
+        .route-summary-value.orange { color: #fa8c16; }
+        .route-summary-value.red { color: #f5222d; }
+        .route-summary-value.dark { color: #333; }
+
+        .vehicle-route-card {
+            background: white;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            border-left: 4px solid #1890ff;
+        }
+        .vehicle-route-card.v2 { border-left-color: #52c41a; }
+        .vehicle-route-card.v3 { border-left-color: #fa8c16; }
+        .vehicle-route-header {
+            font-weight: bold;
+            font-size: 14px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .vehicle-route-header.v1 { color: #1890ff; }
+        .vehicle-route-header.v2 { color: #52c41a; }
+        .vehicle-route-header.v3 { color: #fa8c16; }
+        .vehicle-route-stats {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+        .vehicle-route-stat {
+            background: #f5f5f5;
+            padding: 8px;
+            border-radius: 4px;
+            text-align: center;
+        }
+        .vehicle-route-stat-label {
+            color: #666;
+            font-size: 10px;
+        }
+        .vehicle-route-stat-value {
+            font-size: 14px;
+            font-weight: bold;
+            color: #333;
+        }
+        .vehicle-route-path {
+            background: #fafafa;
+            padding: 10px;
+            border-radius: 6px;
+            font-size: 12px;
+            color: #666;
+            line-height: 1.6;
+        }
+        .vehicle-route-path-label {
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 6px;
+        }
+        .vehicle-route-path-text {
+            color: #666;
+        }
+        .vehicle-route-path-text .highlight {
+            color: #1890ff;
+            font-weight: 500;
+        }
+        .vehicle-route-path-text .v2 .highlight { color: #52c41a; }
+        .vehicle-route-path-text .v3 .highlight { color: #fa8c16; }
+
+        /* 时间合规状态 */
+        .time-status {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 11px;
+            font-weight: 500;
+        }
+        .time-status.ok { background: #f6ffed; color: #52c41a; }
+        .time-status.warn { background: #fff7e6; color: #fa8c16; }
+        .time-status.over { background: #fff1f0; color: #f5222d; }
+
+        /* 弹窗样式 */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-overlay.active {
+            display: flex;
+        }
+        .modal {
+            background: white;
+            border-radius: 12px;
+            width: 500px;
+            max-height: 70vh;
+            overflow: hidden;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+        .modal-header {
+            padding: 16px 20px;
+            background: linear-gradient(135deg, #1e3c72, #2a5298);
+            color: white;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .modal-title {
+            font-size: 16px;
+            font-weight: bold;
+        }
+        .modal-close {
+            background: rgba(255,255,255,0.2);
+            border: none;
+            color: white;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            font-size: 16px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-close:hover {
+            background: rgba(255,255,255,0.3);
+        }
+        .modal-body {
+            padding: 20px;
+            max-height: calc(70vh - 100px);
+            overflow-y: auto;
+        }
+        .modal-selected-info {
+            font-size: 13px;
+            color: #666;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+        .modal-select-btns {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 15px;
+        }
+        .modal-select-btn {
+            flex: 1;
+            padding: 8px;
+            border: 1px solid #1890ff;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+            background: white;
+            color: #1890ff;
+            text-align: center;
+        }
+        .modal-select-btn:hover {
+            background: #e6f7ff;
+        }
+        .modal-branch-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .modal-branch-item {
+            background: #fafafa;
+            border: 1px solid #e8e8e8;
+            border-radius: 8px;
+            padding: 12px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .modal-branch-item.selected {
+            background: #e6f7ff;
+            border-color: #1890ff;
+            border-left: 3px solid #1890ff;
+        }
+        .modal-branch-checkbox {
+            width: 20px;
+            height: 20px;
+            border: 2px solid #d9d9d9;
+            border-radius: 4px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+        }
+        .modal-branch-checkbox.checked {
+            background: #1890ff;
+            border-color: #1890ff;
+            color: white;
+        }
+        .modal-branch-index {
+            width: 28px;
+            height: 28px;
+            background: linear-gradient(135deg, #ff6b6b, #ff4d4f);
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .modal-branch-info {
+            flex: 1;
+        }
+        .modal-branch-name {
+            font-size: 14px;
+            font-weight: 600;
+            color: #333;
+        }
+        .modal-branch-addr {
+            font-size: 12px;
+            color: #888;
+            margin-top: 2px;
+        }
+        .modal-branch-stay {
+            font-size: 11px;
+            color: #1890ff;
+            font-weight: 500;
+        }
+
+        /* 可折叠功能栏样式 - 平滑下拉动画 cubic-bezier */
+        .collapsible-section {
+            border-bottom: 1px solid #eee;
+            flex-shrink: 0;
+        }
+        .collapsible-header {
+            padding: 14px 16px;
+            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.25s ease;
+            user-select: none;
+            border-left: 3px solid transparent;
+        }
+        .collapsible-header:hover {
+            background: linear-gradient(135deg, #e9ecef, #dee2e6);
+            border-left-color: #1890ff;
+        }
+        .collapsible-header:active {
+            background: linear-gradient(135deg, #dee2e6, #d3d7db);
+        }
+        .collapsible-title {
+            font-size: 13px;
+            font-weight: bold;
+            color: #333;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .collapsible-icon {
+            font-size: 10px;
+            color: #999;
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            display: inline-block;
+        }
+        .collapsible-section.expanded .collapsible-icon {
+            transform: rotate(180deg);
+        }
+        .collapsible-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .collapsible-section.expanded .collapsible-content {
+            max-height: 2000px;
+        }
+        .collapsible-inner {
+            padding: 14px 16px;
+            animation: fadeIn 0.3s ease;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* 图例样式 */
+        .legend {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            background: white;
+            padding: 12px 16px;
+            border-radius: 8px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.15);
+            z-index: 100;
+            font-size: 12px;
+            display: none;
+        }
+        .legend.show { display: block; }
+        .legend-title {
+            font-weight: bold;
+            margin-bottom: 8px;
+            color: #333;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 4px;
+        }
+        .legend-line {
+            width: 24px;
+            height: 4px;
+            border-radius: 2px;
+        }
+        .legend-text {
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🚛 银行押运车路线规划系统</h1>
+        <div class="header-info">
+            <span>🏦 网点数：<strong id="count">0</strong></span>
+            <button id="selectedBtn" onclick="showSelectedModal()"
+                    style="margin-left:15px;padding:4px 12px;background:#1890ff;color:white;border:none;border-radius:16px;font-size:12px;cursor:pointer;">
+                ✓ 已选：<strong id="headerSelectedCount">0</strong>
+            </button>
+        </div>
+    </div>
+
+    <!-- 已选网点弹窗 -->
+    <div class="modal-overlay" id="selectedModal" onclick="closeModal()">
+        <div class="modal" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <div class="modal-title">✓ 已选择网点（参与路线规划）</div>
+                <button class="modal-close" onclick="closeModal()">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="modal-selected-info" id="modalSelectedInfo">共选择 <strong style="color:#1890ff;">0</strong> 个网点</div>
+                <div class="modal-select-btns">
+                    <div class="modal-select-btn" onclick="selectAll()">全选</div>
+                    <div class="modal-select-btn" onclick="selectNone()">全不选</div>
+                    <div class="modal-select-btn" onclick="selectReverse()">反选</div>
+                </div>
+                <div class="modal-branch-list" id="modalBranchList">
+                    <div style="text-align:center;color:#999;padding:40px;">暂无网点数据</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="main">
+        <div class="sidebar">
+            <div class="sidebar-scroll">
+                <!-- 可折叠：路线规划设置 -->
+                <div class="collapsible-section expanded" id="route-settings">
+                    <div class="collapsible-header" onclick="toggleSection('route-settings')">
+                        <div class="collapsible-title">⚙️ 路线规划设置</div>
+                        <span class="collapsible-icon">▼</span>
+                    </div>
+                    <div class="collapsible-content">
+                        <div class="collapsible-inner">
+                            <div style="margin-bottom:12px;">
+                                <div style="font-size:12px;color:#666;margin-bottom:6px;">📍 起点</div>
+                                <div class="start-box">
+                                    <div class="start-btn active" style="flex:1;">总行营业部</div>
+                                </div>
+                            </div>
+                            <div style="margin-bottom:12px;">
+                                <div style="font-size:12px;color:#666;margin-bottom:6px;">🚛 运钞车数量</div>
+                                <div class="vehicle-btns">
+                                    <div class="vehicle-btn active" onclick="setVehicle(1)">🚛 1辆</div>
+                                    <div class="vehicle-btn" onclick="setVehicle(2)">🚛🚛 2辆</div>
+                                    <div class="vehicle-btn" onclick="setVehicle(3)">🚛🚛🚛 3辆</div>
+                                </div>
+                                <div style="margin-top:8px;display:flex;gap:6px;">
+                                    <input type="number" id="vehicle-input" min="1" max="20" value="1"
+                                           style="flex:1;padding:6px;border:1px solid #ddd;border-radius:4px;font-size:12px;text-align:center;"
+                                           onchange="setVehicleFromInput()" onkeypress="if(event.keyCode==13)setVehicleFromInput()">
+                                    <button class="btn btn-secondary" onclick="setVehicleFromInput()"
+                                            style="padding:6px 12px;font-size:12px;">确认</button>
+                                </div>
+                                <button class="btn btn-auto" onclick="autoSelectVehicleCount()" style="width:100%;margin-top:8px;padding:8px;font-size:12px;">
+                                    🤖 自动选择最优数量
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 可折叠：数据导入 -->
+                <div class="collapsible-section" id="data-import">
+                    <div class="collapsible-header" onclick="toggleSection('data-import')">
+                        <div class="collapsible-title">📥 数据导入</div>
+                        <span class="collapsible-icon">▶</span>
+                    </div>
+                    <div class="collapsible-content">
+                        <div class="collapsible-inner" style="padding:8px 12px;">
+                            <div class="btns" style="padding:0;border:none;">
+                                <button class="btn btn-secondary" onclick="importFromExcel()" style="padding:10px;font-size:12px;">📥 导入Excel网点</button>
+                                <button class="btn btn-secondary" onclick="importTasks()" style="padding:10px;font-size:12px;">📋 导入任务</button>
+                                <button class="btn btn-secondary" onclick="clearAll()" style="padding:10px;font-size:12px;">🗑️ 清空全部</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 可折叠：网点列表 -->
+                <div class="collapsible-section collapsed" id="branch-list-section">
+                    <div class="collapsible-header" onclick="toggleSection('branch-list-section')">
+                        <div class="collapsible-title">🏦 网点列表</div>
+                        <span class="collapsible-icon">▶</span>
+                    </div>
+                    <div class="collapsible-content">
+                        <div class="collapsible-inner" style="padding:0;">
+                            <!-- 搜索栏 -->
+                            <div style="padding:10px 12px;background:#f0f7ff;border-bottom:1px solid #e8f4ff;">
+                                <div style="font-size:12px;color:#1890ff;margin-bottom:6px;">🔍 搜索网点</div>
+                                <div class="search-box">
+                                    <input type="text" class="search-input" id="keyword" placeholder="输入银行名称、地址关键字" oninput="searchLocal()" onkeypress="if(event.keyCode==13)searchLocal()">
+                                    <button class="search-btn" onclick="clearSearch()">清空</button>
+                                </div>
+                                <div id="search-info" style="margin-top:6px;font-size:11px;color:#666;display:none;"></div>
+                            </div>
+                            <!-- 网点列表 -->
+                            <div class="branch-list-wrapper" id="list-wrapper">
+                                <div class="branch-list" id="list">
+                                    <div class="empty">
+                                        <div class="empty-icon">🏦</div>
+                                        <div class="empty-text">暂无网点数据</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- sidebar-bottom 固定底部 -->
+            <div class="sidebar-bottom">
+                <div style="padding:12px;">
+                    <button class="btn btn-primary" onclick="plan()" style="width:100%;padding:14px;font-size:14px;font-weight:bold;">🧮 智能规划路线</button>
+                </div>
+                <div class="stats" id="stats">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                        <div class="stats-title" style="margin:0;">📊 路线统计</div>
+                        <button onclick="toggleStatsPanel()" id="expandBtn" style="background:#52c41a;color:white;border:none;padding:5px 10px;border-radius:4px;font-size:11px;cursor:pointer;">⬆️ 展开</button>
+                    </div>
+                    <div class="stats-grid">
+                        <div class="stat-item"><div class="stat-val" id="sDist">0</div><div class="stat-label">总里程(km)</div></div>
+                        <div class="stat-item"><div class="stat-val" id="sTime">0</div><div class="stat-label">总时间(分)</div></div>
+                        <div class="stat-item"><div class="stat-val" id="sFuel">0</div><div class="stat-label">油耗(L)</div></div>
+                        <div class="stat-item"><div class="stat-val" id="sCost">0</div><div class="stat-label">油费(元)</div></div>
+                    </div>
+                    <div class="route-detail" id="detail"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="map-area">
+            <div class="tip">💡 点击地图可添加网点 | 拖拽调整 | 滚轮缩放</div>
+            <div id="map"></div>
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <div class="loading-text" id="loading-text">正在规划路线...</div>
+                <div class="loading-sub" id="loading-sub">正在计算实际公路距离</div>
+                <div class="progress-bar active" id="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+            </div>
+            <!-- 图例 -->
+            <div class="legend" id="legend">
+                <div class="legend-title">🚛 车辆路线图例</div>
+                <div id="legend-items"></div>
+            </div>
+        </div>
+    </div>
+    <div class="toast" id="toast"></div>
+
+    <script src="https://webapi.amap.com/maps?v=1.4.15&key=b20a10f85d22b61eb37c43f95ef8568d&plugin=AMap.Driving,AMap.Scale,AMap.Geocoder"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    <script>
+        /* ========== 常量 ========== */
+        // 起点只有"总行营业部"
+        var START_POINT = { name: '总行营业部', lng: 113.296696, lat: 22.79537 };
+        var FUEL = 13.3;       // 油耗 L/100km
+        var SPEED = 30;        // 平均速度 km/h
+        var PRICE = 8;         // 油价 元/L
+        var MAX_TIME_PER_VEHICLE = 180; // 每辆车最大时间（分钟）= 3小时
+        var REST_API_KEY = 'f313d90db6029d14953e0cf1c903fdac';
+        // 10种颜色
+        var COLORS = ['#1890ff', '#52c41a', '#fa8c16', '#f5222d', '#722ed1', '#13c2c2', '#eb2f96', '#faad14', '#2f54eb', '#a0d911'];
+
+        /* ========== 全局变量 ========== */
+        var map, startMarker, vehicle = 1;
+        var branches = [], markers = [], polylines = [], routeMarkers = [];
+        var selectedBranches = new Set();
+        var currentSearchKeyword = '';
+        var geocoder = null;
+
+        /* ========== 初始化 ========== */
+        window.onload = function() {
+            try {
+                if (typeof AMap === 'undefined') {
+                    document.getElementById('map').innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:#666;"><div style="font-size:48px;margin-bottom:16px;">⚠️</div><div style="font-size:16px;">地图加载失败，请刷新重试</div></div>';
+                    return;
+                }
+                map = new AMap.Map('map', { zoom: 13, center: [START_POINT.lng, START_POINT.lat] });
+                map.addControl(new AMap.Scale());
+                geocoder = new AMap.Geocoder({ city: '全国' });
+                addStart();
+                map.on('click', function(e) { addBranch(e.lnglat.getLng(), e.lnglat.getLat()); });
+                console.log('[系统] 地图初始化完成，起点:', START_POINT.name);
+            } catch (err) {
+                console.error('[系统] 初始化失败:', err);
+            }
+        };
+
+        /* ========== 起点标记 ========== */
+        function addStart() {
+            var div = document.createElement('div');
+            div.style.cssText = 'width:36px;height:36px;background:#1890ff;border-radius:50%;display:flex;align-items:center;justify-content:center;color:white;font-weight:bold;font-size:14px;border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.3);';
+            div.innerHTML = '起';
+            startMarker = new AMap.Marker({ position: [START_POINT.lng, START_POINT.lat], content: div, offset: new AMap.Pixel(-18, -18) });
+            map.add(startMarker);
+        }
+
+        /* ========== 运钞车数量 ========== */
+        function setVehicle(n) {
+            vehicle = n;
+            document.querySelectorAll('.vehicle-btn').forEach(function(b, i) { b.classList.toggle('active', i + 1 === n); });
+            var input = document.getElementById('vehicle-input');
+            if (input) input.value = n;
+        }
+
+        function setVehicleFromInput() {
+            var input = document.getElementById('vehicle-input');
+            var n = parseInt(input.value);
+            if (isNaN(n) || n < 1) { n = 1; input.value = 1; }
+            else if (n > 20) { n = 20; input.value = 20; }
+            vehicle = n;
+            document.querySelectorAll('.vehicle-btn').forEach(function(b, i) { b.classList.toggle('active', i + 1 === n); });
+            toast('运钞车数量设置为: ' + n + '辆');
+        }
+
+        /* ========== 自动选择最优车辆数量 ========== */
+        async function autoSelectVehicleCount() {
+            var selectedList = branches.filter(function(b) { return selectedBranches.has(b.id); });
+            if (selectedList.length < 1) {
+                toast('请至少选择1个网点');
+                return;
+            }
+
+            showLoading('🤖 正在智能规划最优车辆数量...', '按任务类型分开计算...');
+
+            // 区分ATM网点和上下介网点
+            var atmBranches = selectedList.filter(function(b) {
+                var taskType = (b.taskType || '').toLowerCase();
+                return taskType.includes('atm') || taskType.includes('清机');
+            });
+            
+            var xiaojieBranches = selectedList.filter(function(b) {
+                var taskType = (b.taskType || '').toLowerCase();
+                return taskType.includes('上下介') || taskType.includes('上介') || taskType.includes('下介');
+            });
+
+            console.log('[自动选车] ATM网点数量:', atmBranches.length);
+            console.log('[自动选车] 上下介网点数量:', xiaojieBranches.length);
+
+            // 分别计算各类型需要的车辆数
+            var atmVehicleCount = calculateVehicleCountForType(atmBranches, 'ATM');
+            var xiaojieVehicleCount = calculateVehicleCountForType(xiaojieBranches, '上下介');
+
+            var totalVehicles = atmVehicleCount + xiaojieVehicleCount;
+            var totalBranches = atmBranches.length + xiaojieBranches.length;
+
+            hideLoading();
+            setVehicle(totalVehicles);
+
+            var msg = '🤖 智能规划完成！\n';
+            if (atmBranches.length > 0) {
+                msg += '• ATM: ' + atmVehicleCount + '辆车（' + atmBranches.length + '个网点）\n';
+            }
+            if (xiaojieBranches.length > 0) {
+                msg += '• 上下介: ' + xiaojieVehicleCount + '辆车（' + xiaojieBranches.length + '个网点）\n';
+            }
+            msg += '总计: ' + totalVehicles + '辆车';
+            
+            toast(msg);
+        }
+
+        // 计算某类型网点需要的车辆数
+        function calculateVehicleCountForType(branchList, typeName) {
+            if (branchList.length === 0) return 0;
+
+            console.log('[自动选车] 计算' + typeName + '类型所需车辆数...');
+
+            // 尝试1到网点数量的车辆，看哪个方案最优
+            var bestCount = 1;
+            var bestScore = Infinity;
+
+            for (var v = 1; v <= branchList.length; v++) {
+                try {
+                    // 轮询分配
+                    var groups = [];
+                    for (var i = 0; i < v; i++) groups.push([]);
+                    branchList.forEach(function(b, idx) { groups[idx % v].push(b); });
+
+                    var totalDist = 0;
+                    var allWithinTimeLimit = true;
+                    var vehicleTimes = [];
+
+                    groups.forEach(function(g, groupIdx) {
+                        if (g.length === 0) return;
+                        var pts = [{ lng: START_POINT.lng, lat: START_POINT.lat }].concat(g);
+                        var order = greedyTSP(pts);
+
+                        var vehicleDist = 0;
+                        var vehicleStay = 0;
+
+                        for (var j = 0; j < order.length - 1; j++) {
+                            vehicleDist += distLine(pts[order[j]], pts[order[j + 1]]);
+                        }
+
+                        // 计算停留时间
+                        g.forEach(function(branch) {
+                            vehicleStay += branch.stay || 5;
+                        });
+
+                        var travelTime = (vehicleDist / SPEED) * 60;
+                        var totalTime = travelTime + vehicleStay;
+                        vehicleTimes.push(totalTime);
+
+                        if (totalTime > MAX_TIME_PER_VEHICLE) {
+                            allWithinTimeLimit = false;
+                        }
+
+                        totalDist += vehicleDist;
+                    });
+
+                    var timeBalance = calculateTimeBalance(vehicleTimes);
+                    var score = totalDist + timeBalance * 0.5;
+                    if (!allWithinTimeLimit) {
+                        score += 10000;
+                    }
+
+                    if (allWithinTimeLimit && score < bestScore) {
+                        bestScore = score;
+                        bestCount = v;
+                    } else if (bestScore === Infinity && score < bestScore) {
+                        bestScore = score;
+                        bestCount = v;
+                    }
+                } catch (err) {
+                    console.error('[自动选车] ' + typeName + '模拟', v, '辆车时出错:', err);
+                }
+            }
+
+            console.log('[自动选车] ' + typeName + '类型需要:', bestCount, '辆车');
+            return bestCount;
+        }
+
+        // 计算时间均衡度（标准差，越小越均衡）
+        function calculateTimeBalance(times) {
+            if (times.length === 0) return 0;
+            if (times.length === 1) return 0;
+            
+            // 计算平均值
+            var sum = 0;
+            times.forEach(function(t) { sum += t; });
+            var avg = sum / times.length;
+            
+            // 计算标准差
+            var variance = 0;
+            times.forEach(function(t) {
+                variance += Math.pow(t - avg, 2);
+            });
+            variance = variance / times.length;
+            var stdDev = Math.sqrt(variance);
+            
+            return stdDev;  // 标准差越小，时间越均衡
+        }
+
+        /* ========== 智能列名匹配函数 ========== */
+        function findColumnValue(row, possibleNames) {
+            // 先精确匹配列名
+            for (var i = 0; i < possibleNames.length; i++) {
+                var name = possibleNames[i];
+                if (row.hasOwnProperty(name) && row[name] !== undefined && row[name] !== null && row[name] !== '') {
+                    console.log('[列名匹配] 精确匹配成功: 列名="' + name + '", 值="' + row[name] + '"');
+                    return row[name];
+                }
+            }
+            // 再模糊匹配（遍历所有列名，检查包含关系）
+            var keys = Object.keys(row);
+            for (var k = 0; k < keys.length; k++) {
+                var colName = keys[k].toLowerCase();
+                for (var j = 0; j < possibleNames.length; j++) {
+                    var target = possibleNames[j].toLowerCase();
+                    if (colName.indexOf(target) !== -1 || target.indexOf(colName) !== -1) {
+                        if (row[keys[k]] !== undefined && row[keys[k]] !== null && row[keys[k]] !== '') {
+                            console.log('[列名匹配] 模糊匹配成功: 列名="' + keys[k] + '" 匹配 "' + possibleNames[j] + '", 值="' + row[keys[k]] + '"');
+                            return row[keys[k]];
+                        }
+                    }
+                }
+            }
+            console.log('[列名匹配] 未找到匹配列，候选列名:', possibleNames, '，实际列名:', keys);
+            return '';
+        }
+
+        /* ========== 地理编码 geocodeAddress ========== */
+        function geocodeAddress(address) {
+            return new Promise(function(resolve) {
+                console.log('[地理编码] 开始编码地址:', address);
+
+                // 方法1：高德REST API（主要）
+                var url = 'https://restapi.amap.com/v3/geocode/geo?key=' + REST_API_KEY + '&address=' + encodeURIComponent(address);
+                console.log('[地理编码] 请求REST API:', url);
+
+                fetchWithRetry(url, {}, 3)
+                    .then(function(resp) { return resp.json(); })
+                    .then(function(data) {
+                        console.log('[地理编码] REST API返回:', JSON.stringify(data));
+                        if (data.status === '1' && data.geocodes && data.geocodes.length > 0) {
+                            var loc = data.geocodes[0].location.split(',');
+                            var lng = parseFloat(loc[0]);
+                            var lat = parseFloat(loc[1]);
+                            console.log('[地理编码] REST API成功:', address, '→', lng, ',', lat);
+                            resolve({ lng: lng, lat: lat, roadName: data.geocodes[0].formatted_address || '' });
+                            return;
+                        }
+                        console.log('[地理编码] REST API返回无效数据，尝试备用方法');
+                        tryGeocodeBackup(address, resolve);
+                    })
+                    .catch(function(err) {
+                        console.error('[地理编码] REST API请求失败（已重试3次）:', err.message);
+                        tryGeocodeBackup(address, resolve);
+                    });
+            });
+        }
+
+        // 地理编码备用方法
+        function tryGeocodeBackup(address, resolve) {
+            console.log('[地理编码] 尝试AMap.Geocoder备用方法');
+            if (geocoder) {
+                geocoder.getLocation(address, function(status, result) {
+                    if (status === 'complete' && result.geocodes && result.geocodes.length > 0) {
+                        var geo = result.geocodes[0];
+                        console.log('[地理编码] AMap.Geocoder成功:', address, '→', geo.location.getLng(), ',', geo.location.getLat());
+                        resolve({ lng: geo.location.getLng(), lat: geo.location.getLat(), roadName: geo.formattedAddress || '' });
+                    } else {
+                        console.log('[地理编码] AMap.Geocoder失败, status:', status);
+                        resolve(null);
+                    }
+                });
+            } else {
+                console.log('[地理编码] AMap.Geocoder不可用');
+                resolve(null);
+            }
+        }
+
+        /* ========== 道路吸附 snapToRoad ========== */
+        // 带超时的fetch请求
+        async function fetchWithTimeout(url, options, timeout) {
+            timeout = timeout || 10000; // 默认10秒超时
+            var controller = new AbortController();
+            var id = setTimeout(function() { controller.abort(); }, timeout);
+            
+            try {
+                var response = await fetch(url, Object.assign({ signal: controller.signal }, options));
+                clearTimeout(id);
+                return response;
+            } catch (error) {
+                clearTimeout(id);
+                throw error;
+            }
+        }
+
+        // 带重试的请求
+        async function fetchWithRetry(url, options, maxRetries) {
+            maxRetries = maxRetries || 3;
+            var lastError;
+            
+            for (var i = 0; i < maxRetries; i++) {
+                try {
+                    console.log('[网络请求] 第' + (i + 1) + '次尝试:', url.substring(0, 80) + '...');
+                    var response = await fetchWithTimeout(url, options, 10000);
+                    if (response.ok) {
+                        return response;
+                    }
+                    throw new Error('HTTP ' + response.status);
+                } catch (err) {
+                    lastError = err;
+                    console.log('[网络请求] 第' + (i + 1) + '次失败:', err.message);
+                    if (i < maxRetries - 1) {
+                        await sleep(1000 * (i + 1)); // 递增延迟：1s, 2s, 3s
+                    }
+                }
+            }
+            throw lastError;
+        }
+
+        function snapToRoad(lng, lat) {
+            return new Promise(function(resolve) {
+                console.log('[道路吸附] 开始吸附坐标:', lng, ',', lat);
+
+                // 方法1：高德逆地理编码REST API（主要）
+                var url = 'https://restapi.amap.com/v3/geocode/regeo?key=' + REST_API_KEY + '&location=' + lng + ',' + lat;
+                console.log('[道路吸附] 请求REST API:', url);
+
+                fetchWithRetry(url, {}, 3)
+                    .then(function(resp) { return resp.json(); })
+                    .then(function(data) {
+                        console.log('[道路吸附] REST API返回:', JSON.stringify(data));
+                        if (data.status === '1' && data.regeocode) {
+                            var roadName = '';
+                            if (data.regeocode.roadinter && data.regeocode.roadinter.length > 0) {
+                                roadName = data.regeocode.roadinter[0].first_name || '';
+                            } else if (data.regeocode.roads && data.regeocode.roads.length > 0) {
+                                roadName = data.regeocode.roads[0].name || '';
+                            }
+                            console.log('[道路吸附] REST API成功，道路名称:', roadName);
+                            resolve({ lng: lng, lat: lat, roadName: roadName });
+                            return;
+                        }
+                        console.log('[道路吸附] REST API返回无效数据，尝试备用方法');
+                        tryGeocoderBackup(lng, lat, resolve);
+                    })
+                    .catch(function(err) {
+                        console.error('[道路吸附] REST API请求失败（已重试3次）:', err.message);
+                        tryGeocoderBackup(lng, lat, resolve);
+                    });
+            });
+        }
+
+        // AMap.Geocoder备用方法
+        function tryGeocoderBackup(lng, lat, resolve) {
+            console.log('[道路吸附] 尝试AMap.Geocoder备用方法');
+            if (geocoder) {
+                geocoder.getAddress([lng, lat], function(status, result) {
+                    if (status === 'complete' && result.regeocode) {
+                        var road = '';
+                        if (result.regeocode.roadinter && result.regeocode.roadinter.length > 0) {
+                            road = result.regeocode.roadinter[0].first_name || '';
+                        } else if (result.regeocode.roads && result.regeocode.roads.length > 0) {
+                            road = result.regeocode.roads[0].name || '';
+                        }
+                        console.log('[道路吸附] AMap.Geocoder备用成功，道路名称:', road);
+                        resolve({ lng: lng, lat: lat, roadName: road });
+                    } else {
+                        console.log('[道路吸附] AMap.Geocoder备用失败，使用原坐标');
+                        resolve({ lng: lng, lat: lat, roadName: '' });
+                    }
+                });
+            } else {
+                console.log('[道路吸附] AMap.Geocoder不可用，使用原坐标');
+                resolve({ lng: lng, lat: lat, roadName: '' });
+            }
+        }
+
+        /* ========== 导入Excel网点 ========== */
+        function importFromExcel() {
+            var input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.xlsx,.xls';
+            input.onchange = function(e) {
+                var file = e.target.files[0];
+                if (!file) return;
+
+                var reader = new FileReader();
+                reader.onload = function(e) {
+                    try {
+                        var data = new Uint8Array(e.target.result);
+                        var workbook = XLSX.read(data, { type: 'array' });
+                        var sheetName = workbook.SheetNames[0];
+                        var sheet = workbook.Sheets[sheetName];
+                        var jsonData = XLSX.utils.sheet_to_json(sheet);
+
+                        console.log('[导入网点] Excel解析成功，共', jsonData.length, '行');
+
+                        if (jsonData.length === 0) {
+                            toast('Excel文件为空');
+                            return;
+                        }
+
+                        // 打印列名用于调试
+                        console.log('[导入网点] Excel列名:', Object.keys(jsonData[0]));
+
+                        showLoading('正在导入网点...', '准备处理 ' + jsonData.length + ' 行数据');
+
+                        processImportRows(jsonData);
+                    } catch (err) {
+                        console.error('[导入网点] Excel解析错误:', err);
+                        hideLoading();
+                        toast('Excel解析失败：' + err.message);
+                    }
+                };
+                reader.readAsArrayBuffer(file);
+            };
+            input.click();
+        }
+
+        async function processImportRows(jsonData) {
+            var n = 0;
+            var newBranches = [];
+
+            for (var i = 0; i < jsonData.length; i++) {
+                var row = jsonData[i];
+
+                // 使用 findColumnValue 智能匹配列名
+                var name = findColumnValue(row, ['网点名称', '支行名称', '名称', '银行名称', 'name']);
+                var addr = findColumnValue(row, ['地址', '网点地址', '详细地址', 'address', 'addr']);
+                var lat = findColumnValue(row, ['纬度', 'lat', 'Latitude', 'Y']);
+                var lng = findColumnValue(row, ['经度', 'lng', 'lon', 'Longitude', 'X']);
+
+                if (!name) {
+                    console.log('[导入网点] 第', i + 1, '行：缺少网点名称，跳过');
+                    continue;
+                }
+
+                if (branches.some(function(b) { return b.name === name; })) {
+                    console.log('[导入网点] 第', i + 1, '行：网点"' + name + '"已存在，跳过');
+                    continue;
+                }
+
+                var latNum = parseFloat(lat);
+                var lngNum = parseFloat(lng);
+
+                if (latNum && lngNum && !isNaN(latNum) && !isNaN(lngNum)) {
+                    // 有经纬度 → 直接使用
+                    console.log('[导入网点] 第', i + 1, '行："' + name + '" 有经纬度', lngNum, ',', latNum);
+                    newBranches.push({ lng: lngNum, lat: latNum, name: name, addr: addr });
+                    n++;
+                } else if (addr) {
+                    // 无经纬度有地址 → 调用 geocodeAddress 定位
+                    console.log('[导入网点] 第', i + 1, '行："' + name + '" 无经纬度，尝试地理编码地址:', addr);
+                    updateProgress(i + 1, jsonData.length);
+                    document.getElementById('loading-sub').textContent = '正在地理编码: ' + name;
+
+                    try {
+                        var geoResult = await geocodeAddress(addr);
+                        if (geoResult) {
+                            console.log('[导入网点] 第', i + 1, '行：地理编码成功', geoResult.lng, ',', geoResult.lat);
+                            newBranches.push({ lng: geoResult.lng, lat: geoResult.lat, name: name, addr: addr });
+                            n++;
+                        } else {
+                            console.log('[导入网点] 第', i + 1, '行：地理编码失败，跳过');
+                        }
+                    } catch (err) {
+                        console.error('[导入网点] 第', i + 1, '行：地理编码异常:', err);
+                    }
+
+                    // API调用间隔避免限流
+                    await sleep(200);
+                } else {
+                    console.log('[导入网点] 第', i + 1, '行："' + name + '" 无经纬度无地址，跳过');
+                }
+            }
+
+            // 导入后自动道路吸附
+            if (newBranches.length > 0) {
+                showLoading('正在道路吸附...', '已添加 ' + newBranches.length + ' 个网点，正在吸附到道路');
+                var snapCount = 0;
+
+                for (var j = 0; j < newBranches.length; j++) {
+                    try {
+                        document.getElementById('loading-sub').textContent = '道路吸附: ' + newBranches[j].name + ' (' + (j + 1) + '/' + newBranches.length + ')';
+                        updateProgress(j + 1, newBranches.length);
+                        var snapResult = await snapToRoad(newBranches[j].lng, newBranches[j].lat);
+                        if (snapResult.roadName) {
+                            console.log('[导入网点] 道路吸附成功:', newBranches[j].name, '→', snapResult.roadName);
+                            snapCount++;
+                        }
+                        await sleep(100);
+                    } catch (err) {
+                        console.error('[导入网点] 道路吸附异常:', err);
+                    }
+                }
+
+                // 添加到地图
+                showLoading('正在添加标记...', '共 ' + newBranches.length + ' 个网点');
+                var bounds = [];
+
+                for (var k = 0; k < newBranches.length; k++) {
+                    var item = newBranches[k];
+                    var b = { id: Date.now() + k, name: item.name, addr: item.addr, lng: item.lng, lat: item.lat, stay: 5 };
+                    branches.push(b);
+                    var idx = branches.length;
+
+                    // 小红点闪烁标记
+                    var m = document.createElement('div');
+                    m.style.cssText = 'width:28px;height:28px;background:#ff4d4f;border-radius:50%;display:flex;align-items:center;justify-content:center;color:white;font-weight:bold;font-size:12px;border:2px solid white;box-shadow:0 2px 4px rgba(0,0,0,0.2);animation:pulse 0.6s ease-in-out;';
+                    m.innerHTML = idx;
+                    var marker = new AMap.Marker({ position: [item.lng, item.lat], content: m, extData: b.id });
+                    map.add(marker);
+                    markers.push(marker);
+                    bounds.push([item.lng, item.lat]);
+                }
+
+                // 地图自动聚焦
+                if (bounds.length > 0) {
+                    map.setFitView(null, false, [50, 50, 50, 50]);
+                }
+
+                updateList();
+                hideLoading();
+                toast('已导入' + n + '个网点（道路吸附' + snapCount + '个）');
+            } else {
+                hideLoading();
+                toast('没有找到新的网点数据可导入');
+            }
+        }
+
+        /* ========== 导入任务 ========== */
+        function importTasks() {
+            var input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.xlsx,.xls';
+            input.onchange = function(e) {
+                var file = e.target.files[0];
+                if (!file) return;
+
+                var reader = new FileReader();
+                reader.onload = function(e) {
+                    try {
+                        var data = new Uint8Array(e.target.result);
+                        var workbook = XLSX.read(data, { type: 'array' });
+                        var sheetName = workbook.SheetNames[0];
+                        var sheet = workbook.Sheets[sheetName];
+                        var jsonData = XLSX.utils.sheet_to_json(sheet);
+
+                        console.log('[导入任务] 任务数据解析成功，共', jsonData.length, '行');
+                        if (jsonData.length > 0) {
+                            console.log('[导入任务] 任务文件列名:', Object.keys(jsonData[0]));
+                        }
+
+                        var updatedCount = 0;
+                        var selectedCount = 0;
+
+                        for (var i = 0; i < jsonData.length; i++) {
+                            var row = jsonData[i];
+
+                            // 使用 findColumnValue 智能匹配列名
+                            var branchName = findColumnValue(row, ['支行名称', '网点名称', '名称', '支行', '银行名称', 'name']);
+                            var taskType = findColumnValue(row, ['任务类型', '任务', '类型', 'type']);
+
+                            if (!branchName) continue;
+
+                            // 先精确匹配网点名称
+                            var branch = branches.find(function(b) { return b.name === branchName; });
+
+                            // 再模糊匹配
+                            if (!branch) {
+                                branch = branches.find(function(b) {
+                                    return b.name.indexOf(branchName) !== -1 || branchName.indexOf(b.name) !== -1;
+                                });
+                            }
+
+                            if (branch) {
+                                var stayTime = 5;
+                                if (taskType && (taskType.indexOf('atm') !== -1 || taskType.indexOf('ATM') !== -1 || taskType.indexOf('清机') !== -1)) {
+                                    stayTime = 15; // ATM清机 → 15分钟
+                                } else if (taskType && (taskType.indexOf('上下介') !== -1 || taskType.indexOf('上介') !== -1 || taskType.indexOf('下介') !== -1)) {
+                                    stayTime = 5;  // 上下介 → 5分钟
+                                }
+
+                                branch.stay = stayTime;
+                                branch.taskType = taskType;
+                                updatedCount++;
+                                selectedBranches.add(branch.id);
+                                selectedCount++;
+
+                                console.log('[导入任务] 匹配成功:', branchName, '→', branch.name, '任务:', taskType, '停留:', stayTime, '分钟');
+                            } else {
+                                console.log('[导入任务] 未匹配到网点:', branchName);
+                            }
+                        }
+
+                        updateList();
+
+                        if (updatedCount > 0) {
+                            toast('已导入 ' + updatedCount + ' 个任务，已自动选中 ' + selectedCount + ' 个网点');
+                        } else {
+                            toast('没有找到匹配的网点，请先导入网点数据');
+                        }
+                    } catch (err) {
+                        console.error('[导入任务] 任务文件解析错误:', err);
+                        toast('任务文件解析失败：' + err.message);
+                    }
+                };
+                reader.readAsArrayBuffer(file);
+            };
+            input.click();
+        }
+
+        /* ========== 添加网点 ========== */
+        function addBranch(lng, lat, name, addr) {
+            var n = name || '网点' + (branches.length + 1);
+            var a = addr || '';
+            if (branches.some(function(b) { return b.name === n; })) { toast('该网点已存在'); return; }
+            branches.push({ id: Date.now(), name: n, addr: a, lng: lng, lat: lat, stay: 5 });
+            var idx = branches.length;
+            var m = document.createElement('div');
+            m.style.cssText = 'width:28px;height:28px;background:#ff4d4f;border-radius:50%;display:flex;align-items:center;justify-content:center;color:white;font-weight:bold;font-size:12px;border:2px solid white;box-shadow:0 2px 4px rgba(0,0,0,0.2);';
+            m.innerHTML = idx;
+            var marker = new AMap.Marker({ position: [lng, lat], content: m, extData: branches[branches.length - 1].id });
+            map.add(marker);
+            markers.push(marker);
+            updateList();
+            toast('已添加: ' + n);
+        }
+
+        /* ========== 列表更新 ========== */
+        function updateList() {
+            document.getElementById('count').textContent = branches.length;
+            document.getElementById('headerSelectedCount').textContent = selectedBranches.size;
+            if (branches.length === 0) {
+                document.getElementById('list').innerHTML = '<div class="empty"><div class="empty-icon">🏦</div><div class="empty-text">暂无网点数据</div></div>';
+                return;
+            }
+            var html = branches.map(function(b, i) {
+                var taskTypeText = '';
+                var taskTypeClass = '';
+                if (b.taskType) {
+                    if (b.taskType.indexOf('atm') !== -1 || b.taskType.indexOf('ATM') !== -1 || b.taskType.indexOf('清机') !== -1) {
+                        taskTypeText = 'ATM清机';
+                        taskTypeClass = 'task-atm';
+                    } else if (b.taskType.indexOf('上下介') !== -1 || b.taskType.indexOf('上介') !== -1 || b.taskType.indexOf('下介') !== -1) {
+                        taskTypeText = '上下介';
+                        taskTypeClass = 'task-transfer';
+                    }
+                }
+                var isHidden = currentSearchKeyword && !matchSearch(b, currentSearchKeyword) ? 'hidden' : '';
+                return '<div class="branch-item ' + (selectedBranches.has(b.id) ? 'selected' : '') + ' ' + isHidden + '" id="item-' + b.id + '">' +
+                '<div class="branch-checkbox ' + (selectedBranches.has(b.id) ? 'checked' : '') + '" onclick="toggleSelect(' + i + ', event)">✓</div>' +
+                '<div class="branch-index">' + (i + 1) + '</div>' +
+                '<div class="branch-info"><div class="branch-name">' + highlightText(b.name, currentSearchKeyword) + '</div><div class="branch-addr">' + (b.addr ? highlightText(b.addr, currentSearchKeyword) : '暂无地址') + '</div>' +
+                (taskTypeText ? '<div class="branch-task ' + taskTypeClass + '">' + taskTypeText + '</div>' : '') + '</div>' +
+                '<div class="stay-btns"><button class="stay-btn ' + (b.stay === 5 ? 'active' : '') + '" onclick="setStay(' + i + ',5)">5分</button><button class="stay-btn ' + (b.stay === 15 ? 'active' : '') + '" onclick="setStay(' + i + ',15)">15分</button></div>' +
+                '<button class="del-btn" onclick="delBranch(' + i + ')">×</button></div>';
+            }).join('');
+            document.getElementById('list').innerHTML = html;
+        }
+
+        /* ========== 弹窗 ========== */
+        function showSelectedModal() {
+            document.getElementById('selectedModal').classList.add('active');
+            updateModalList();
+        }
+
+        function closeModal() {
+            document.getElementById('selectedModal').classList.remove('active');
+        }
+
+        function updateModalList() {
+            document.getElementById('modalSelectedInfo').innerHTML = '共选择 <strong style="color:#1890ff;">' + selectedBranches.size + '</strong> 个网点';
+            if (branches.length === 0) {
+                document.getElementById('modalBranchList').innerHTML = '<div style="text-align:center;color:#999;padding:40px;">暂无网点数据</div>';
+                return;
+            }
+            var html = branches.map(function(b, i) {
+                return '<div class="modal-branch-item ' + (selectedBranches.has(b.id) ? 'selected' : '') + '" id="modal-item-' + b.id + '">' +
+                '<div class="modal-branch-checkbox ' + (selectedBranches.has(b.id) ? 'checked' : '') + '" onclick="toggleSelect(' + i + ', event)">✓</div>' +
+                '<div class="modal-branch-index">' + (i + 1) + '</div>' +
+                '<div class="modal-branch-info"><div class="modal-branch-name">' + b.name + '</div><div class="modal-branch-addr">' + (b.addr ? b.addr : '暂无地址') + '</div></div>' +
+                '<div class="modal-branch-stay">停留' + b.stay + '分钟</div>' +
+                '</div>';
+            }).join('');
+            document.getElementById('modalBranchList').innerHTML = html;
+        }
+
+        /* ========== 搜索 ========== */
+        function searchLocal() {
+            var kw = document.getElementById('keyword').value.trim();
+            currentSearchKeyword = kw;
+            if (!kw) {
+                document.getElementById('search-info').style.display = 'none';
+                updateList();
+                return;
+            }
+            var matchedCount = branches.filter(function(b) { return matchSearch(b, kw); }).length;
+            var searchInfo = document.getElementById('search-info');
+            searchInfo.style.display = 'block';
+            searchInfo.innerHTML = '找到 <strong>' + matchedCount + '</strong> 个匹配网点';
+            updateList();
+        }
+
+        function clearSearch() {
+            document.getElementById('keyword').value = '';
+            currentSearchKeyword = '';
+            document.getElementById('search-info').style.display = 'none';
+            updateList();
+        }
+
+        function matchSearch(branch, keyword) {
+            if (!keyword) return true;
+            var kw = keyword.toLowerCase();
+            return (branch.name && branch.name.toLowerCase().indexOf(kw) !== -1) ||
+                   (branch.addr && branch.addr.toLowerCase().indexOf(kw) !== -1);
+        }
+
+        function highlightText(text, keyword) {
+            if (!keyword || !text) return text || '';
+            var regex = new RegExp('(' + keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi');
+            return text.replace(regex, '<mark style="background:#ffeb3b;padding:0 2px;border-radius:2px;">$1</mark>');
+        }
+
+        /* ========== 选择操作 ========== */
+        function toggleSelect(i, e) {
+            if (e) e.stopPropagation();
+            var b = branches[i];
+            if (selectedBranches.has(b.id)) {
+                selectedBranches.delete(b.id);
+            } else {
+                selectedBranches.add(b.id);
+            }
+            updateList();
+            updateModalList();
+        }
+
+        function selectAll() {
+            branches.forEach(function(b) { selectedBranches.add(b.id); });
+            updateList();
+            updateModalList();
+        }
+
+        function selectNone() {
+            selectedBranches.clear();
+            updateList();
+            updateModalList();
+        }
+
+        function selectReverse() {
+            branches.forEach(function(b) {
+                if (selectedBranches.has(b.id)) { selectedBranches.delete(b.id); }
+                else { selectedBranches.add(b.id); }
+            });
+            updateList();
+            updateModalList();
+        }
+
+        function setStay(i, t) { branches[i].stay = t; updateList(); }
+
+        function delBranch(i) {
+            var id = branches[i].id;
+            branches.splice(i, 1);
+            selectedBranches.delete(id);
+            if (markers[i]) { map.remove(markers[i]); markers.splice(i, 1); }
+            polylines.forEach(function(p) { map.remove(p); }); polylines = [];
+            routeMarkers.forEach(function(m) { map.remove(m); }); routeMarkers = [];
+            document.getElementById('stats').style.display = 'none';
+            document.getElementById('legend').classList.remove('show');
+            updateList();
+            renumberMarkers();
+        }
+
+        function renumberMarkers() {
+            markers.forEach(function(m, i) {
+                var div = document.createElement('div');
+                div.style.cssText = 'width:28px;height:28px;background:#ff4d4f;border-radius:50%;display:flex;align-items:center;justify-content:center;color:white;font-weight:bold;font-size:12px;border:2px solid white;box-shadow:0 2px 4px rgba(0,0,0,0.2);';
+                div.innerHTML = i + 1;
+                m.setContent(div);
+            });
+        }
+
+        function resetMarkers() {
+            markers.forEach(function(m, i) {
+                var div = document.createElement('div');
+                div.style.cssText = 'width:28px;height:28px;background:#ff4d4f;border-radius:50%;display:flex;align-items:center;justify-content:center;color:white;font-weight:bold;font-size:12px;border:2px solid white;box-shadow:0 2px 4px rgba(0,0,0,0.2);';
+                div.innerHTML = i + 1;
+                m.setContent(div);
+                m.setOpacity(1);
+            });
+        }
+
+        function clearAll() {
+            if (branches.length === 0) return;
+            if (!confirm('确定清空所有网点？')) return;
+            branches = [];
+            selectedBranches.clear();
+            currentSearchKeyword = '';
+            document.getElementById('keyword').value = '';
+            document.getElementById('search-info').style.display = 'none';
+            markers.forEach(function(m) { map.remove(m); }); markers = [];
+            polylines.forEach(function(p) { map.remove(p); }); polylines = [];
+            routeMarkers.forEach(function(m) { map.remove(m); }); routeMarkers = [];
+            document.getElementById('stats').style.display = 'none';
+            document.getElementById('legend').classList.remove('show');
+            updateList();
+            toast('已清空');
+        }
+
+        /* ========== 路径顺序优化 optimizeRouteOrder ========== */
+        function optimizeRouteOrder(pts) {
+            // 贪心最近邻算法
+            var order = greedyTSP(pts);
+            // 2-opt局部优化（最多200轮）
+            order = twoOptImprove(order, pts);
+            return order;
+        }
+
+        function greedyTSP(pts) {
+            var n = pts.length;
+            var vis = [];
+            for (var i = 0; i < n; i++) vis.push(false);
+            var route = [0];
+            var cur = 0;
+            vis[0] = true;
+            while (route.length < n) {
+                var near = -1, min = Infinity;
+                for (var i = 0; i < n; i++) {
+                    if (!vis[i] && distLine(pts[cur], pts[i]) < min) {
+                        min = distLine(pts[cur], pts[i]);
+                        near = i;
+                    }
+                }
+                if (near !== -1) { route.push(near); vis[near] = true; cur = near; }
+            }
+            route.push(0); // 回到起点
+            return route;
+        }
+
+        function twoOptImprove(order, pts) {
+            var maxRounds = 200;
+            var round = 0;
+            var improved = true;
+            while (improved && round < maxRounds) {
+                improved = false;
+                round++;
+                for (var i = 1; i < order.length - 2; i++) {
+                    for (var j = i + 1; j < order.length - 1; j++) {
+                        var d1 = distLine(pts[order[i - 1]], pts[order[i]]) + distLine(pts[order[j]], pts[order[j + 1]]);
+                        var d2 = distLine(pts[order[i - 1]], pts[order[j]]) + distLine(pts[order[i]], pts[order[j + 1]]);
+                        if (d2 < d1) {
+                            var k = i, l = j;
+                            while (k < l) {
+                                var tmp = order[k];
+                                order[k] = order[l];
+                                order[l] = tmp;
+                                k++;
+                                l--;
+                            }
+                            improved = true;
+                        }
+                    }
+                }
+            }
+            console.log('[路径优化] 2-opt优化完成，轮数:', round);
+            return order;
+        }
+
+        /* ========== 实际驾车路线规划 planVehicleDriving ========== */
+        async function planVehicleDriving(from, to) {
+            console.log('[驾车规划] 规划路线:', (from.name || '起点'), '→', (to.name || '终点'));
+            console.log('[驾车规划] 坐标:', from.lng, ',', from.lat, '→', to.lng, ',', to.lat);
+
+            var url = 'https://restapi.amap.com/v3/direction/driving?origin=' + from.lng + ',' + from.lat + '&destination=' + to.lng + ',' + to.lat + '&key=' + REST_API_KEY;
+            console.log('[驾车规划] 请求高德API');
+
+            try {
+                var resp = await fetchWithRetry(url, {}, 3);
+                var data = await resp.json();
+                console.log('[驾车规划] API返回 status:', data.status);
+
+                if (data.status === '1' && data.route && data.route.paths && data.route.paths.length > 0) {
+                    var route = data.route.paths[0];
+                    var path = [];
+
+                    // 提取 polyline 路径坐标
+                    if (route.steps) {
+                        route.steps.forEach(function(step) {
+                            if (step.polyline) {
+                                var coords = step.polyline.split(';');
+                                coords.forEach(function(c) {
+                                    var xy = c.split(',');
+                                    path.push([parseFloat(xy[0]), parseFloat(xy[1])]);
+                                });
+                            }
+                        });
+                    }
+
+                    console.log('[驾车规划] 成功，距离:', (route.distance / 1000).toFixed(1), 'km，路径点数:', path.length);
+                    return { distance: route.distance / 1000, path: path.length > 0 ? path : [[from.lng, from.lat], [to.lng, to.lat]] };
+                } else {
+                    console.log('[驾车规划] API失败，错误码:', data.infocode, '信息:', data.info);
+                    // 失败时使用直线距离备用
+                    return { distance: distLine(from, to), path: [[from.lng, from.lat], [to.lng, to.lat]] };
+                }
+            } catch (err) {
+                console.error('[驾车规划] 网络错误（已重试3次）:', err.message);
+                // 失败时使用直线距离备用
+                return { distance: distLine(from, to), path: [[from.lng, from.lat], [to.lng, to.lat]] };
+            }
+        }
+
+        /* ========== 距离计算 ========== */
+        function distLine(a, b) {
+            var R = 6371;
+            var dLat = (b.lat - a.lat) * Math.PI / 180;
+            var dLon = (b.lng - a.lng) * Math.PI / 180;
+            var s = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(a.lat * Math.PI / 180) * Math.cos(b.lat * Math.PI / 180) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+            return R * 2 * Math.atan2(Math.sqrt(s), Math.sqrt(1 - s));
+        }
+
+        function sleep(ms) {
+            return new Promise(function(resolve) { setTimeout(resolve, ms); });
+        }
+
+        /* ========== 规划入口 ========== */
+        function plan() {
+            if (selectedBranches.size < 2) { toast('请至少选择2个网点进行规划'); return; }
+            var selectedList = branches.filter(function(b) { return selectedBranches.has(b.id); });
+            if (selectedList.length < 2) { toast('请至少选择2个网点'); return; }
+            console.log('[路线规划] 开始规划，车辆数:', vehicle, '网点数:', selectedList.length);
+            showLoading('正在规划路线...', '正在计算实际公路距离');
+            polylines.forEach(function(p) { map.remove(p); }); polylines = [];
+            routeMarkers.forEach(function(m) { map.remove(m); }); routeMarkers = [];
+            document.getElementById('legend').classList.remove('show');
+            resetMarkers();
+
+            setTimeout(function() {
+                planWithRoadSelected(selectedList);
+            }, 100);
+        }
+
+        /* ========== 规划流程 planWithRoadSelected ========== */
+        async function planWithRoadSelected(selectedList) {
+            console.log('[路线规划] planWithRoadSelected开始，车辆数:', vehicle, '选中网点数:', selectedList.length);
+
+            // 1. 按任务类型分开分配网点到各车辆
+            // ATM清机网点
+            var atmBranches = selectedList.filter(function(b) {
+                var taskType = (b.taskType || '').toLowerCase();
+                return taskType.includes('atm') || taskType.includes('清机');
+            });
+            
+            // 上下介网点
+            var xiaojieBranches = selectedList.filter(function(b) {
+                var taskType = (b.taskType || '').toLowerCase();
+                return taskType.includes('上下介') || taskType.includes('上介') || taskType.includes('下介');
+            });
+
+            console.log('[路线规划] ATM清机网点:', atmBranches.length, '个');
+            console.log('[路线规划] 上下介网点:', xiaojieBranches.length, '个');
+
+            // 计算各类型需要的车辆数
+            var atmVehicleCount = calculateVehicleCountForType(atmBranches, 'ATM');
+            var xiaojieVehicleCount = calculateVehicleCountForType(xiaojieBranches, '上下介');
+
+            console.log('[路线规划] ATM需要车辆:', atmVehicleCount, '辆');
+            console.log('[路线规划] 上下介需要车辆:', xiaojieVehicleCount, '辆');
+
+            // 创建分组
+            var groups = [];
+            
+            // 前atmVehicleCount辆车分配ATM网点
+            for (var i = 0; i < atmVehicleCount; i++) {
+                groups.push([]);
+            }
+            atmBranches.forEach(function(b, idx) {
+                groups[idx % atmVehicleCount].push(b);
+            });
+
+            // 后xiaojieVehicleCount辆车分配上下介网点
+            for (var i = 0; i < xiaojieVehicleCount; i++) {
+                groups.push([]);
+            }
+            xiaojieBranches.forEach(function(b, idx) {
+                groups[atmVehicleCount + idx % xiaojieVehicleCount].push(b);
+            });
+
+            console.log('[路线规划] 分组详情:', groups.map(function(g, i) { 
+                var type = i < atmVehicleCount ? 'ATM' : '上下介';
+                return { '车辆': i + 1, '类型': type, '数量': g.length, '网点': g.map(function(b) { return b.name; }) }; 
+            }));
+
+            // 2. optimizeRouteOrder 优化每辆车的访问顺序
+            var routes = [];
+            var totalSegments = 0;
+            groups.forEach(function(g) { if (g.length > 0) totalSegments += g.length + 1; });
+            var completedSegments = 0;
+            updateProgress(0, totalSegments);
+
+            // 3. planVehicleDriving 获取实际驾车路径
+            for (var vi = 0; vi < groups.length; vi++) {
+                var g = groups[vi];
+                if (g.length === 0) continue;
+
+                var routeType = vi < atmVehicleCount ? 'ATM' : '上下介';
+                console.log('[路线规划] 处理车辆', vi + 1, '（' + routeType + '）网点:', g.map(function(b) { return b.name; }));
+
+                var pts = [{ lng: START_POINT.lng, lat: START_POINT.lat, name: START_POINT.name }].concat(g);
+                var order = optimizeRouteOrder(pts);
+
+                console.log('[路线规划] 车辆', vi + 1, '优化后顺序:', order);
+
+                var totalDist = 0;
+                var allPath = [[pts[order[0]].lng, pts[order[0]].lat]];
+
+                for (var j = 0; j < order.length - 1; j++) {
+                    var from = pts[order[j]];
+                    var to = pts[order[j + 1]];
+
+                    console.log('[路线规划] 车辆', vi + 1, '段', j + 1, ':', from.name || '起点', '→', to.name || '终点');
+
+                    try {
+                        var result = await planVehicleDriving(from, to);
+                        totalDist += result.distance;
+                        if (result.path && result.path.length > 0) {
+                            allPath = allPath.concat(result.path.slice(1));
+                        }
+                        console.log('[路线规划] 车辆', vi + 1, '段', j + 1, '完成，距离:', result.distance.toFixed(1), 'km');
+                    } catch (e) {
+                        console.error('[路线规划] 车辆', vi + 1, '段', j + 1, '异常:', e);
+                        totalDist += distLine(from, to);
+                        allPath.push([to.lng, to.lat]);
+                    }
+
+                    // API调用间隔200ms避免限流
+                    await sleep(200);
+
+                    completedSegments++;
+                    updateProgress(completedSegments, totalSegments);
+                }
+
+                var stay = g.reduce(function(s, b) { return s + b.stay; }, 0);
+                var drivingTime = Math.ceil(totalDist / SPEED * 60);
+                var totalTime = drivingTime + stay;
+                routes.push({
+                    vi: vi, path: allPath, dist: totalDist, stay: stay,
+                    branches: g, time: totalTime, fuel: totalDist / 100 * FUEL,
+                    routeType: routeType  // 添加任务类型标识
+                });
+
+                console.log('[路线规划] 车辆', vi + 1, '（' + routeType + '）完成，总距离:', totalDist.toFixed(1), 'km，行驶时间:', drivingTime, '分钟，停留:', stay, '分钟，总计:', totalTime, '分钟');
+            }
+
+            console.log('[路线规划] 所有车辆规划完成，路线数:', routes.length);
+
+            // 4. drawRoutes 绘制路线
+            drawRoutes(routes);
+            // 5. showStats 显示统计
+            showStats(routes);
+            hideLoading();
+            toast('规划完成！' + routes.length + '辆车（ATM:' + atmVehicleCount + '辆 + 上下介:' + xiaojieVehicleCount + '辆），' + selectedList.length + '个网点');
+        }
+
+        /* ========== 地图显示 drawRoutes ========== */
+        function drawRoutes(routes) {
+            // 清除之前的高亮
+            document.querySelectorAll('.branch-item').forEach(function(el) { el.classList.remove('on-route'); });
+
+            // 获取所有规划路线中的网点ID
+            var plannedBranchIds = new Set();
+            routes.forEach(function(r) {
+                r.branches.forEach(function(b) { plannedBranchIds.add(b.id); });
+            });
+
+            // 将所有网点标记重置：规划的显示车辆内序号，未规划的变半透明
+            markers.forEach(function(marker) {
+                var branchId = marker.getExtData();
+                var isPlanned = plannedBranchIds.has(branchId);
+
+                if (isPlanned) {
+                    // 查找该网点属于哪辆车，显示车辆内序号
+                    var vehicleIdx = -1;
+                    var orderInVehicle = 0;
+                    for (var ri = 0; ri < routes.length; ri++) {
+                        for (var bi = 0; bi < routes[ri].branches.length; bi++) {
+                            if (routes[ri].branches[bi].id === branchId) {
+                                vehicleIdx = ri;
+                                orderInVehicle = bi + 1;
+                                break;
+                            }
+                        }
+                        if (vehicleIdx >= 0) break;
+                    }
+
+                    var color = COLORS[vehicleIdx % COLORS.length];
+                    var div = document.createElement('div');
+                    div.style.cssText = 'width:28px;height:28px;background:' + color + ';border-radius:50%;display:flex;align-items:center;justify-content:center;color:white;font-weight:bold;font-size:12px;border:2px solid white;box-shadow:0 2px 4px rgba(0,0,0,0.2);';
+                    div.innerHTML = orderInVehicle;
+                    marker.setContent(div);
+                    marker.setOpacity(1);
+                } else {
+                    // 未规划的网点：变半透明
+                    marker.setOpacity(0.3);
+                }
+            });
+
+            // 绘制路线
+            routes.forEach(function(r, i) {
+                var path = r.path || [];
+                if (!path || path.length < 2) return;
+
+                var color = COLORS[i % COLORS.length];
+
+                var line = new AMap.Polyline({
+                    path: path,
+                    strokeColor: color,
+                    strokeWeight: 6,
+                    strokeOpacity: 0.85,
+                    showDir: true,
+                    lineCap: 'round',
+                    lineJoin: 'round'
+                });
+                map.add(line);
+                polylines.push(line);
+
+                // 高亮途经网点（列表）
+                r.branches.forEach(function(b) {
+                    var el = document.getElementById('item-' + b.id);
+                    if (el) el.classList.add('on-route');
+                });
+            });
+
+            map.setFitView(polylines, false, [50, 50, 50, 50]);
+
+            // 显示图例
+            showLegend(routes);
+        }
+
+        /* ========== 图例 ========== */
+        function showLegend(routes) {
+            var legendEl = document.getElementById('legend');
+            var itemsEl = document.getElementById('legend-items');
+            var html = '';
+            routes.forEach(function(r, i) {
+                var color = COLORS[i % COLORS.length];
+                var routeType = r.routeType || '通用';
+                html += '<div class="legend-item"><div class="legend-line" style="background:' + color + ';"></div><span class="legend-text">车辆' + (i + 1) + ' - ' + routeType + ' (' + r.branches.length + '个)</span></div>';
+            });
+            itemsEl.innerHTML = html;
+            legendEl.classList.add('show');
+        }
+
+        /* ========== 统计面板 showStats ========== */
+        function showStats(routes) {
+            var total = routes.reduce(function(s, r) {
+                return { d: s.d + r.dist, t: s.t + r.time, f: s.f + r.fuel };
+            }, { d: 0, t: 0, f: 0 });
+
+            document.getElementById('sDist').textContent = total.d.toFixed(1);
+            document.getElementById('sTime').textContent = total.t;
+            document.getElementById('sFuel').textContent = total.f.toFixed(1);
+            document.getElementById('sCost').textContent = Math.round(total.f * PRICE);
+
+            var detailHtml = '';
+
+            // 每辆车的路线信息
+            routes.forEach(function(r, i) {
+                var color = COLORS[i % COLORS.length];
+                var vClass = i < 3 ? 'v' + (i + 1) : '';
+                var branchNames = r.branches.map(function(b) { return b.name; }).join(' → ');
+                var routeType = r.routeType || '通用';
+                var typeIcon = routeType === 'ATM' ? '🏧' : (routeType === '上下介' ? '🔄' : '📦');
+
+                // 时间合规状态
+                var timeStatusClass = 'ok';
+                var timeStatusText = '合规';
+                if (r.time > MAX_TIME_PER_VEHICLE) {
+                    timeStatusClass = 'over';
+                    timeStatusText = '超时(' + r.time + '分)';
+                } else if (r.time > MAX_TIME_PER_VEHICLE * 0.8) {
+                    timeStatusClass = 'warn';
+                    timeStatusText = '接近限制';
+                }
+
+                detailHtml +=
+                    '<div class="vehicle-route-card ' + vClass + '" style="border-left-color:' + color + ';">' +
+                    '<div class="vehicle-route-header" style="color:' + color + ';">' +
+                    '<span>' + typeIcon + ' 车辆' + (i + 1) + ' <small style="font-weight:normal;color:#666;background:' + color + ';color:white;padding:2px 6px;border-radius:4px;">' + routeType + '</small></span>' +
+                    '<span class="time-status ' + timeStatusClass + '">' + timeStatusText + '</span>' +
+                    '</div>' +
+                    '<div class="vehicle-route-stats">' +
+                    '<div class="vehicle-route-stat"><div class="vehicle-route-stat-label">🛣️ 里程</div><div class="vehicle-route-stat-value">' + r.dist.toFixed(1) + ' km</div></div>' +
+                    '<div class="vehicle-route-stat"><div class="vehicle-route-stat-label">⏱️ 时间</div><div class="vehicle-route-stat-value">' + r.time + ' 分</div></div>' +
+                    '<div class="vehicle-route-stat"><div class="vehicle-route-stat-label">⛽ 油耗</div><div class="vehicle-route-stat-value">' + r.fuel.toFixed(1) + ' L</div></div>' +
+                    '<div class="vehicle-route-stat"><div class="vehicle-route-stat-label">💰 油费</div><div class="vehicle-route-stat-value">¥' + Math.round(r.fuel * PRICE) + '</div></div>' +
+                    '</div>' +
+                    '<div class="vehicle-route-path">' +
+                    '<div class="vehicle-route-path-label">📍 路线顺序：</div>' +
+                    '<div class="vehicle-route-path-text" style="color:' + color + ';">起点 → ' + branchNames + ' → 起点</div>' +
+                    '</div>' +
+                    '</div>';
+            });
+
+            // 检查是否有车辆超时
+            var overTimeVehicles = routes.filter(function(r) { return r.time > MAX_TIME_PER_VEHICLE; });
+            var warningHtml = '';
+            if (overTimeVehicles.length > 0) {
+                warningHtml = '<div style="margin-top:10px;padding:10px;background:#fff2f0;border:1px solid #ffccc7;border-radius:6px;color:#ff4d4f;font-size:12px;">' +
+                    '⚠️ <strong>警告：</strong>车辆' + overTimeVehicles.map(function(r, i) { return (routes.indexOf(r) + 1); }).join('、') + '超过3小时限制（' + MAX_TIME_PER_VEHICLE + '分钟），建议增加车辆数重新规划' +
+                    '</div>';
+            }
+
+            // 总计信息
+            detailHtml +=
+                '<div class="route-summary">' +
+                '<div class="route-summary-title">📊 全部车辆总计</div>' +
+                '<div class="route-summary-grid">' +
+                '<div class="route-summary-item"><div class="route-summary-label">总里程</div><div class="route-summary-value blue">' + total.d.toFixed(1) + ' km</div></div>' +
+                '<div class="route-summary-item"><div class="route-summary-label">总时间</div><div class="route-summary-value blue">' + total.t + ' 分</div></div>' +
+                '<div class="route-summary-item"><div class="route-summary-label">总油耗</div><div class="route-summary-value orange">' + total.f.toFixed(1) + ' L</div></div>' +
+                '<div class="route-summary-item"><div class="route-summary-label">预估油费</div><div class="route-summary-value red">¥' + Math.round(total.f * PRICE) + '</div></div>' +
+                '<div class="route-summary-item"><div class="route-summary-label">总网点</div><div class="route-summary-value dark">' + routes.reduce(function(s, r) { return s + r.branches.length; }, 0) + ' 个</div></div>' +
+                '</div>' +
+                warningHtml +
+                '</div>';
+
+            document.getElementById('detail').innerHTML = detailHtml;
+            document.getElementById('stats').style.display = 'block';
+        }
+
+        /* ========== 折叠/展开功能栏 ========== */
+        function toggleSection(sectionId) {
+            var section = document.getElementById(sectionId);
+            var icon = section.querySelector('.collapsible-icon');
+
+            section.classList.toggle('expanded');
+            section.classList.toggle('collapsed');
+
+            if (section.classList.contains('expanded')) {
+                icon.textContent = '▼';
+            } else {
+                icon.textContent = '▶';
+            }
+        }
+
+        function toggleStatsPanel() {
+            var stats = document.getElementById('stats');
+            var btn = document.getElementById('expandBtn');
+            stats.classList.toggle('expanded');
+            if (stats.classList.contains('expanded')) {
+                btn.textContent = '⬇️ 收起';
+                stats.style.maxHeight = '400px';
+            } else {
+                btn.textContent = '⬆️ 展开';
+                stats.style.maxHeight = '200px';
+            }
+        }
+
+        /* ========== UI辅助 ========== */
+        function showLoading(text, sub) {
+            document.getElementById('loading-text').textContent = text;
+            document.getElementById('loading-sub').textContent = sub;
+            document.getElementById('loading').classList.add('active');
+            document.getElementById('progress-fill').style.width = '0%';
+        }
+
+        function updateProgress(cur, total) {
+            var pct = Math.round((cur / total) * 100);
+            document.getElementById('progress-fill').style.width = pct + '%';
+            document.getElementById('loading-sub').textContent = '已计算 ' + cur + '/' + total + ' 段路线';
+        }
+
+        function hideLoading() {
+            document.getElementById('loading').classList.remove('active');
+        }
+
+        function toast(msg) {
+            var t = document.getElementById('toast');
+            t.textContent = msg;
+            t.classList.add('show');
+            setTimeout(function() { t.classList.remove('show'); }, 2500);
+        }
+    </script>
+</body>
+</html>
